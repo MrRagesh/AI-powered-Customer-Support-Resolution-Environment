@@ -1,0 +1,95 @@
+# ============================================================
+# OpenEnv Specification — AI Customer Support Environment
+# ============================================================
+name: ai-support-openenv
+version: "1.0"
+description: >
+  An OpenEnv-compliant reinforcement learning environment for
+  AI-driven customer support resolution. Agents classify tickets,
+  retrieve knowledge, generate responses, and resolve or escalate
+  issues across three difficulty levels.
+
+endpoints:
+  base_url: http://localhost:7860
+  reset:    POST /env/reset
+  step:     POST /env/step
+  state:    GET  /env/state/{session_id}
+  tasks:    GET  /tasks
+  grader:   POST /grader
+  baseline: POST /baseline
+  health:   GET  /health
+
+auth:
+  type: bearer
+  header: Authorization
+  format: "Bearer {API_KEY}"
+
+tasks:
+  - id: support-easy-v1
+    difficulty: easy
+    description: "Single-turn billing/refund ticket"
+    max_steps: 5
+    reward_range: [-1.0, 1.5]
+
+  - id: support-medium-v1
+    difficulty: medium
+    description: "Multi-turn technical troubleshooting"
+    max_steps: 10
+    reward_range: [-1.0, 1.5]
+
+  - id: support-hard-v1
+    difficulty: hard
+    description: "Complex multi-intent ticket requiring escalation judgment"
+    max_steps: 20
+    reward_range: [-1.0, 1.5]
+
+action_space:
+  type: discrete
+  actions:
+    - type: classify
+      requires_content: true
+      description: "Classify ticket category"
+    - type: retrieve
+      requires_content: true
+      description: "Retrieve KB articles"
+    - type: respond
+      requires_content: true
+      description: "Send response to customer"
+    - type: clarify
+      requires_content: true
+      description: "Ask clarifying question"
+    - type: resolve
+      requires_content: false
+      description: "Mark ticket as resolved"
+    - type: escalate
+      requires_content: false
+      description: "Escalate to human agent"
+
+observation_space:
+  fields:
+    - ticket_id: string
+    - step: integer
+    - observation_text: string
+    - category: string | null
+    - kb_results: array
+    - conversation_history: array
+    - metadata: object
+
+reward_structure:
+  step_penalty: -0.05
+  correct_classification: +0.10
+  successful_retrieval: +0.05
+  resolution: +1.00
+  escalation: +0.10
+  failure: -0.50
+  efficiency_bonus: up to +0.50
+
+grader:
+  deterministic: true
+  reproducible: true
+  scores: 0-100
+
+baseline:
+  strategy: rule-based
+  reproducible: true
+  expected_pass_rate: ">= 0.5"
