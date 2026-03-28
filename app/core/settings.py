@@ -1,7 +1,6 @@
 """Core settings via pydantic-settings."""
 from functools import lru_cache
 from typing import List, Optional
-from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -17,8 +16,8 @@ class Settings(BaseSettings):
     API_KEY: str = "changeme-dev-key-only-32chars!!"
     ALLOWED_ORIGINS: List[str] = ["*"]
 
-    OPENAI_API_KEY: Optional[str] = None
-    LLM_MODEL: str = "gpt-4o-mini"
+    GEMINI_API_KEY: Optional[str] = None
+    LLM_MODEL: str = "gemini-1.5-flash"
     LLM_TEMPERATURE: float = 0.2
     LLM_MAX_TOKENS: int = 1024
     EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"

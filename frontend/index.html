@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Customer Support — OpenEnv Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --surface2: #21262d;
+      --border: #30363d;
+      --accent: #58a6ff;
+      --accent2: #3fb950;
+      --accent3: #f78166;
+      --accent4: #d2a8ff;
+      --accent5: #ffa657;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --danger: #f85149;
+      --success: #3fb950;
+      --warning: #d29922;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); overflow-x: hidden; }
+
+    /* HEADER */
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 32px; border-bottom: 1px solid var(--border);
+      background: rgba(22,27,34,0.95); backdrop-filter: blur(12px);
+      position: sticky; top: 0; z-index: 100;
+    }
+    .logo { display: flex; align-items: center; gap: 10px; }
+    .logo-icon { font-size: 26px; }
+    .logo h1 { font-size: 18px; font-weight: 600; background: linear-gradient(90deg, var(--accent), var(--accent4)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--danger); animation: pulse 2s infinite; }
+    .status-dot.online { background: var(--success); }
+    @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+    .header-right { display: flex; align-items: center; gap: 16px; }
+    .api-key-input {
+      background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+      padding: 6px 12px; border-radius: 8px; font-size: 13px; width: 260px; outline: none;
+      font-family: 'Inter', monospace;
+    }
+    .api-key-input:focus { border-color: var(--accent); }
+
+    /* LAYOUT */
+    .layout { display: grid; grid-template-columns: 300px 1fr; height: calc(100vh - 61px); }
+
+    /* SIDEBAR */
+    .sidebar {
+      background: var(--surface); border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; overflow-y: auto;
+    }
+    .sidebar-section { padding: 20px; border-bottom: 1px solid var(--border); }
+    .sidebar-section h3 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 14px; }
+
+    /* Task Cards */
+    .task-card {
+      background: var(--surface2); border: 1px solid var(--border); border-radius: 10px;
+      padding: 14px; cursor: pointer; margin-bottom: 8px;
+      transition: border-color 0.2s, transform 0.15s;
+    }
+    .task-card:hover { border-color: var(--accent); transform: translateX(2px); }
+    .task-card.active { border-color: var(--accent); background: rgba(88,166,255,0.08); }
+    .task-card .task-id { font-size: 12px; font-weight: 600; color: var(--accent); margin-bottom: 4px; }
+    .task-card .task-desc { font-size: 12px; color: var(--muted); }
+    .difficulty { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; margin-top: 6px; }
+    .difficulty.easy { background: rgba(63,185,80,0.15); color: var(--success); }
+    .difficulty.medium { background: rgba(210,153,34,0.15); color: var(--warning); }
+    .difficulty.hard { background: rgba(248,81,73,0.15); color: var(--danger); }
+
+    /* Stats */
+    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .stat-box { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 12px; text-align: center; }
+    .stat-box .val { font-size: 22px; font-weight: 700; color: var(--accent); }
+    .stat-box .lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+
+    /* MAIN CONTENT */
+    .main { display: flex; flex-direction: column; background: var(--bg); }
+
+    /* TOP BAR */
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 24px; border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .session-info { display: flex; align-items: center; gap: 12px; }
+    .session-badge {
+      background: var(--surface2); border: 1px solid var(--border); border-radius: 6px;
+      padding: 4px 10px; font-size: 12px; font-family: monospace; color: var(--muted);
+    }
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 500;
+      cursor: pointer; border: none; transition: all 0.15s; font-family: 'Inter', sans-serif;
+    }
+    .btn-primary { background: var(--accent); color: #0d1117; }
+    .btn-primary:hover { background: #79c0ff; }
+    .btn-danger { background: rgba(248,81,73,0.15); color: var(--danger); border: 1px solid rgba(248,81,73,0.3); }
+    .btn-danger:hover { background: rgba(248,81,73,0.25); }
+    .btn-ghost { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+    .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* Reward bar */
+    .reward-bar { display: flex; align-items: center; gap: 16px; }
+    .reward-val { font-size: 20px; font-weight: 700; }
+    .reward-val.positive { color: var(--success); }
+    .reward-val.negative { color: var(--danger); }
+    .progress-wrap { width: 120px; height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
+    .progress-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--accent), var(--accent4)); transition: width 0.5s; }
+
+    /* CHAT AREA */
+    .chat-area { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+    .chat-area::-webkit-scrollbar { width: 6px; }
+    .chat-area::-webkit-scrollbar-track { background: transparent; }
+    .chat-area::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    .msg { display: flex; gap: 12px; max-width: 80%; animation: fadeSlide 0.3s ease; }
+    @keyframes fadeSlide { from{opacity:0;transform:translateY(10px);} to{opacity:1;transform:translateY(0);} }
+    .msg.system { align-self: center; max-width: 100%; }
+    .msg.ai { align-self: flex-start; }
+    .msg.user { align-self: flex-end; flex-direction: row-reverse; }
+
+    .avatar { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+    .avatar.ai-av { background: linear-gradient(135deg, #58a6ff22, #d2a8ff22); border: 1px solid var(--accent); }
+    .avatar.user-av { background: linear-gradient(135deg, #3fb95022, #ffa65722); border: 1px solid var(--accent2); }
+
+    .bubble {
+      padding: 12px 16px; border-radius: 12px; font-size: 14px; line-height: 1.6;
+      max-width: 100%;
+    }
+    .msg.ai .bubble { background: var(--surface); border: 1px solid var(--border); border-radius: 4px 12px 12px 12px; }
+    .msg.user .bubble { background: rgba(88,166,255,0.1); border: 1px solid rgba(88,166,255,0.2); border-radius: 12px 4px 12px 12px; }
+    .msg.system .bubble { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; text-align: center; color: var(--muted); font-size: 13px; width: 100%; }
+
+    .bubble .role-label { font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .reward-chip {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; margin-top: 8px;
+    }
+    .reward-chip.pos { background: rgba(63,185,80,0.15); color: var(--success); }
+    .reward-chip.neg { background: rgba(248,81,73,0.15); color: var(--danger); }
+
+    .kb-results { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+    .kb-item { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font-size: 12px; color: var(--muted); }
+    .kb-item strong { color: var(--accent4); }
+
+    /* SCORE CARD */
+    .score-card {
+      background: linear-gradient(135deg, rgba(88,166,255,0.08), rgba(210,168,255,0.08));
+      border: 1px solid rgba(88,166,255,0.3); border-radius: 12px; padding: 20px;
+      text-align: center; margin: 8px;
+    }
+    .score-card h2 { font-size: 48px; font-weight: 700; background: linear-gradient(90deg, var(--accent), var(--accent4)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .score-card p { color: var(--muted); font-size: 14px; }
+    .passed-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 20px; font-weight: 600; font-size: 13px; margin-top: 8px; }
+    .passed-badge.pass { background: rgba(63,185,80,0.15); color: var(--success); border: 1px solid rgba(63,185,80,0.3); }
+    .passed-badge.fail { background: rgba(248,81,73,0.15); color: var(--danger); border: 1px solid rgba(248,81,73,0.3); }
+
+    /* ACTION PANEL */
+    .action-panel {
+      border-top: 1px solid var(--border); background: var(--surface); padding: 16px 24px;
+    }
+    .action-tabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+    .action-tab {
+      padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 600;
+      cursor: pointer; border: 1px solid var(--border); background: var(--surface2);
+      color: var(--muted); transition: all 0.15s;
+    }
+    .action-tab:hover { border-color: var(--accent); color: var(--accent); }
+    .action-tab.active { background: rgba(88,166,255,0.15); border-color: var(--accent); color: var(--accent); }
+    .action-tab.resolve { color: var(--success); border-color: rgba(63,185,80,0.3); }
+    .action-tab.resolve:hover, .action-tab.resolve.active { background: rgba(63,185,80,0.1); border-color: var(--success); }
+    .action-tab.escalate { color: var(--warning); border-color: rgba(210,153,34,0.3); }
+    .action-tab.escalate:hover, .action-tab.escalate.active { background: rgba(210,153,34,0.1); border-color: var(--warning); }
+
+    .input-row { display: flex; gap: 10px; }
+    .action-input {
+      flex: 1; background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+      padding: 10px 14px; border-radius: 10px; font-size: 14px; outline: none; font-family: 'Inter', sans-serif;
+      transition: border-color 0.2s;
+    }
+    .action-input:focus { border-color: var(--accent); }
+    .action-input:disabled { opacity: 0.4; }
+
+    /* WELCOME */
+    .welcome {
+      flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 16px; padding: 40px;
+    }
+    .welcome-icon { font-size: 64px; }
+    .welcome h2 { font-size: 24px; font-weight: 700; color: var(--text); }
+    .welcome p { color: var(--muted); text-align: center; max-width: 400px; line-height: 1.6; }
+
+    /* LOADING SPINNER */
+    .spinner { width: 18px; height: 18px; border: 2px solid transparent; border-top-color: currentColor; border-radius: 50%; animation: spin 0.6s linear infinite; display: inline-block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* TOAST */
+    #toast {
+      position: fixed; bottom: 24px; right: 24px; z-index: 999;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+      padding: 14px 18px; font-size: 13px; box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      transform: translateY(80px); opacity: 0; transition: all 0.3s; max-width: 320px;
+    }
+    #toast.show { transform: translateY(0); opacity: 1; }
+    #toast.success { border-left: 3px solid var(--success); }
+    #toast.error { border-left: 3px solid var(--danger); }
+    #toast.info { border-left: 3px solid var(--accent); }
+  </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    <span class="logo-icon">🤖</span>
+    <h1>AI Customer Support OpenEnv</h1>
+  </div>
+  <div class="header-right">
+    <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);">
+      <span class="status-dot" id="statusDot"></span>
+      <span id="statusText">Checking...</span>
+    </div>
+    <input class="api-key-input" id="apiKeyInput" type="text" placeholder="API Key" value="changeme-dev-key-only-32chars!!" />
+    <input class="api-key-input" id="baseUrlInput" type="text" placeholder="Server URL" value="http://localhost:7860" style="width:190px;" />
+  </div>
+</header>
+
+<div class="layout">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <h3>Tasks</h3>
+      <div class="task-card" data-task="support-easy-v1" onclick="selectTask(this)">
+        <div class="task-id">support-easy-v1</div>
+        <div class="task-desc">Single-turn refund / billing ticket</div>
+        <span class="difficulty easy">● Easy — 5 steps</span>
+      </div>
+      <div class="task-card" data-task="support-medium-v1" onclick="selectTask(this)">
+        <div class="task-id">support-medium-v1</div>
+        <div class="task-desc">Multi-turn technical troubleshooting</div>
+        <span class="difficulty medium">● Medium — 10 steps</span>
+      </div>
+      <div class="task-card" data-task="support-hard-v1" onclick="selectTask(this)">
+        <div class="task-id">support-hard-v1</div>
+        <div class="task-desc">Complex multi-intent + escalation</div>
+        <span class="difficulty hard">● Hard — 20 steps</span>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <h3>Session Stats</h3>
+      <div class="stats-grid">
+        <div class="stat-box"><div class="val" id="statSteps">0</div><div class="lbl">Steps</div></div>
+        <div class="stat-box"><div class="val" id="statReward" style="color:var(--accent)">0.0</div><div class="lbl">Reward</div></div>
+        <div class="stat-box"><div class="val" id="statStatus" style="font-size:13px;color:var(--muted)">—</div><div class="lbl">Status</div></div>
+        <div class="stat-box"><div class="val" id="statTasks" style="font-size:16px">0</div><div class="lbl">Sessions</div></div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <h3>Reward Guide</h3>
+      <div style="font-size:12px;display:flex;flex-direction:column;gap:8px;">
+        <div style="display:flex;justify-content:space-between;"><span style="color:var(--muted);">Each step</span><span style="color:var(--danger);">−0.05</span></div>
+        <div style="display:flex;justify-content:space-between;"><span style="color:var(--muted);">Classify</span><span style="color:var(--accent);">+0.10</span></div>
+        <div style="display:flex;justify-content:space-between;"><span style="color:var(--muted);">Retrieve KB</span><span style="color:var(--accent);">+0.05</span></div>
+        <div style="display:flex;justify-content:space-between;"><span style="color:var(--muted);">Resolve</span><span style="color:var(--success);">+1.00</span></div>
+        <div style="display:flex;justify-content:space-between;"><span style="color:var(--muted);">Escalate</span><span style="color:var(--warning);">+0.10</span></div>
+        <div style="display:flex;justify-content:space-between;"><span style="color:var(--muted);">Failure</span><span style="color:var(--danger);">−0.50</span></div>
+      </div>
+    </div>
+
+    <div class="sidebar-section" style="border-bottom:none;">
+      <h3>Help</h3>
+      <div style="font-size:12px;color:var(--muted);line-height:1.7;">
+        1. Select a task<br>
+        2. Click <strong style="color:var(--accent);">Start Session</strong><br>
+        3. Select an action type<br>
+        4. Type content &amp; Submit<br>
+        5. Resolve or Escalate to end
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main" id="mainArea">
+    <!-- TOP BAR -->
+    <div class="topbar">
+      <div class="session-info">
+        <span style="font-size:14px;font-weight:600;">Session</span>
+        <span class="session-badge" id="sessionBadge">No active session</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:16px;">
+        <div class="reward-bar">
+          <div>
+            <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;">Cumulative Reward</div>
+            <div class="reward-val" id="cumulativeReward">—</div>
+          </div>
+          <div>
+            <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">Progress</div>
+            <div class="progress-wrap"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+          </div>
+        </div>
+        <button class="btn btn-ghost" id="gradeBtn" onclick="gradeSession()" disabled>📊 Grade</button>
+        <button class="btn btn-danger" id="resetBtn" onclick="resetSession()" disabled>↩ Reset</button>
+        <button class="btn btn-primary" id="startBtn" onclick="startSession()">▶ Start Session</button>
+      </div>
+    </div>
+
+    <!-- WELCOME / CHAT -->
+    <div class="welcome" id="welcomeMsg">
+      <div class="welcome-icon">💬</div>
+      <h2>Start a Support Session</h2>
+      <p>Choose a task difficulty on the left, then click <strong>Start Session</strong> to begin. Your AI agent will classify, retrieve knowledge, and resolve the customer ticket.</p>
+    </div>
+
+    <div class="chat-area" id="chatArea" style="display:none;"></div>
+
+    <!-- ACTION PANEL -->
+    <div class="action-panel" id="actionPanel" style="display:none;">
+      <div class="action-tabs">
+        <div class="action-tab active" onclick="selectAction('classify',this)" data-needs-content="true">🏷 Classify</div>
+        <div class="action-tab" onclick="selectAction('retrieve',this)" data-needs-content="true">🔍 Retrieve KB</div>
+        <div class="action-tab" onclick="selectAction('respond',this)" data-needs-content="true">💬 Respond</div>
+        <div class="action-tab" onclick="selectAction('clarify',this)" data-needs-content="true">❓ Clarify</div>
+        <div class="action-tab resolve" onclick="selectAction('resolve',this)" data-needs-content="false">✅ Resolve</div>
+        <div class="action-tab escalate" onclick="selectAction('escalate',this)" data-needs-content="false">🚨 Escalate</div>
+      </div>
+      <div class="input-row">
+        <input class="action-input" id="actionInput" placeholder="Type message content here..." onkeydown="if(event.key==='Enter')submitAction()" />
+        <button class="btn btn-primary" id="submitBtn" onclick="submitAction()">Send →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+  let state = {
+    sessionId: null,
+    selectedTask: 'support-easy-v1',
+    currentAction: 'classify',
+    cumulativeReward: 0,
+    steps: 0,
+    maxSteps: 5,
+    totalSessions: 0,
+    ended: false,
+  };
+
+  const BASE = () => document.getElementById('baseUrlInput').value.replace(/\/$/, '');
+  const API_KEY = () => document.getElementById('apiKeyInput').value;
+  const headers = () => ({
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${API_KEY()}`
+  });
+
+  /* ─── Health check ─── */
+  async function checkHealth() {
+    try {
+      const r = await fetch(`${BASE()}/health`);
+      const ok = r.ok;
+      document.getElementById('statusDot').className = `status-dot ${ok ? 'online' : ''}`;
+      document.getElementById('statusText').textContent = ok ? 'Server Online' : 'Offline';
+    } catch { 
+      document.getElementById('statusDot').className = 'status-dot';
+      document.getElementById('statusText').textContent = 'Offline';
+    }
+  }
+  checkHealth();
+  setInterval(checkHealth, 10000);
+
+  /* ─── Task selection ─── */
+  function selectTask(el) {
+    document.querySelectorAll('.task-card').forEach(c => c.classList.remove('active'));
+    el.classList.add('active');
+    state.selectedTask = el.dataset.task;
+    const steps = { 'support-easy-v1': 5, 'support-medium-v1': 10, 'support-hard-v1': 20 };
+    state.maxSteps = steps[state.selectedTask] || 5;
+  }
+
+  function selectAction(action, el) {
+    state.currentAction = action;
+    document.querySelectorAll('.action-tab').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    const needsContent = el.dataset.needsContent === 'true';
+    const inp = document.getElementById('actionInput');
+    inp.disabled = !needsContent;
+    inp.placeholder = needsContent
+      ? {classify:'e.g. I need a refund for order #1234', retrieve:'e.g. refund policy', respond:'Type your response to the customer...', clarify:'e.g. Could you provide your order number?'}[action] || 'Type content...'
+      : `No content needed for "${action}" — just click Send`;
+    if (needsContent) inp.focus();
+  }
+
+  /* ─── Start Session ─── */
+  async function startSession() {
+    setLoading(true);
+    try {
+      const r = await fetch(`${BASE()}/env/reset`, { method:'POST', headers:headers(), body: JSON.stringify({task_id: state.selectedTask}) });
+      if (!r.ok) throw new Error(`${r.status}: ${await r.text()}`);
+      const data = await r.json();
+      state.sessionId = data.session_id;
+      state.cumulativeReward = 0;
+      state.steps = 0;
+      state.ended = false;
+      state.totalSessions++;
+
+      document.getElementById('sessionBadge').textContent = state.sessionId?.slice(0,20) + '…';
+      document.getElementById('welcomeMsg').style.display = 'none';
+      document.getElementById('chatArea').style.display = 'flex';
+      document.getElementById('actionPanel').style.display = 'block';
+      document.getElementById('chatArea').innerHTML = '';
+
+      document.getElementById('resetBtn').disabled = false;
+      document.getElementById('gradeBtn').disabled = false;
+      document.getElementById('startBtn').textContent = '↺ New Session';
+
+      updateStats();
+      toast('Session started!', 'success');
+
+      // Show ticket from observation
+      if(data.observation) {
+      // Parse observation cleanly
+      const obs = data.observation || {};
+      let ticketText = obs.ticket_text || obs.observation_text || obs.message || '';
+      // If it's still an object, try JSON fields
+      if (!ticketText && typeof obs === 'object') {
+        ticketText = obs.text || obs.content || '';
+      }
+      // Extract ticket text from observation_text if it contains "Ticket:"
+      if (obs.observation_text && obs.observation_text.includes('Ticket:')) {
+        const match = obs.observation_text.match(/Ticket:\s*([\s\S]*?)(?:\n\nPlease|$)/);
+        if (match) ticketText = match[1].trim();
+        else ticketText = obs.observation_text;
+      }
+      if (ticketText) appendMsg('ai', '🎟 Customer Ticket', ticketText, null);
+      }
+      // First action hint
+      selectAction('classify', document.querySelector('.action-tab'));
+
+    } catch(e) { toast(e.message, 'error'); }
+    setLoading(false);
+  }
+
+  /* ─── Submit Action ─── */
+  async function submitAction() {
+    if(!state.sessionId) { toast('Start a session first!', 'error'); return; }
+    if(state.ended) { toast('Session ended. Start a new one.', 'info'); return; }
+    const inp = document.getElementById('actionInput');
+    const needsContent = document.querySelector('.action-tab.active').dataset.needsContent === 'true';
+    const content = inp.value.trim();
+    if(needsContent && !content) { inp.focus(); return; }
+
+    setLoading(true);
+    const actionPayload = { type: state.currentAction };
+    if(needsContent && content) actionPayload.content = content;
+
+    // Show user message
+    const label = {classify:'🏷 Classify',retrieve:'🔍 Retrieve KB',respond:'💬 Respond',clarify:'❓ Clarify',resolve:'✅ Resolve',escalate:'🚨 Escalate'}[state.currentAction];
+    appendMsg('user', label, content || `(${state.currentAction})`, null);
+    inp.value = '';
+
+    try {
+      const r = await fetch(`${BASE()}/env/step`, {
+        method:'POST', headers:headers(),
+        body: JSON.stringify({ session_id: state.sessionId, action: actionPayload })
+      });
+      if(!r.ok) throw new Error(`${r.status}: ${await r.text()}`);
+      const data = await r.json();
+
+      state.steps++;
+      const rwd = data.reward ?? 0;
+      state.cumulativeReward += rwd;
+      const done = data.done ?? false;
+
+      // KB results display
+      let extra = '';
+      if(state.currentAction === 'retrieve' && data.observation?.kb_results?.length) {
+        extra = data.observation.kb_results.map(r => 
+          `<div class="kb-item"><strong>[${(r.doc_id||'').slice(0,8)}]</strong> ${r.snippet||r.content||''}</div>`
+        ).join('');
+        extra = `<div class="kb-results">${extra}</div>`;
+      }
+      const obsMsg = data.observation?.message || data.message || (done ? 'Session ended.' : '');
+      appendMsg('ai', '🤖 Agent Response', obsMsg + extra, rwd, done);
+
+      if(done) {
+        state.ended = true;
+        appendSystemMsg('Session complete! Click 📊 Grade to see your final score.');
+      }
+      updateStats();
+    } catch(e) { toast(e.message, 'error'); }
+    setLoading(false);
+  }
+
+  /* ─── Grade ─── */
+  async function gradeSession() {
+    if(!state.sessionId) return;
+    setLoading(true);
+    try {
+      const r = await fetch(`${BASE()}/grader`, { method:'POST', headers:headers(), body: JSON.stringify({session_id:state.sessionId}) });
+      if(!r.ok) throw new Error(`${r.status}: ${await r.text()}`);
+      const data = await r.json();
+      const score = data.score ?? 0;
+      const passed = data.passed ?? false;
+      const chat = document.getElementById('chatArea');
+      const card = document.createElement('div');
+      card.innerHTML = `
+        <div class="score-card">
+          <p style="color:var(--muted);font-size:13px;margin-bottom:4px;">Final Score</p>
+          <h2>${score}</h2>
+          <span class="passed-badge ${passed?'pass':'fail'}">${passed?'✅ PASSED':'❌ FAILED'}</span>
+          ${data.breakdown ? `<div style="margin-top:12px;font-size:12px;color:var(--muted);">${Object.entries(data.breakdown).map(([k,v])=>`<span style="margin:0 6px;">${k}: <strong style="color:var(--text)">${v}</strong></span>`).join('')}</div>` : ''}
+        </div>`;
+      chat.appendChild(card);
+      chat.scrollTop = chat.scrollHeight;
+    } catch(e) { toast(e.message, 'error'); }
+    setLoading(false);
+  }
+
+  /* ─── Reset ─── */
+  async function resetSession() {
+    state.sessionId = null; state.cumulativeReward = 0; state.steps = 0; state.ended = false;
+    document.getElementById('sessionBadge').textContent = 'No active session';
+    document.getElementById('chatArea').innerHTML = '';
+    document.getElementById('chatArea').style.display = 'none';
+    document.getElementById('actionPanel').style.display = 'none';
+    document.getElementById('welcomeMsg').style.display = 'flex';
+    document.getElementById('cumulativeReward').textContent = '—';
+    document.getElementById('cumulativeReward').className = 'reward-val';
+    document.getElementById('progressFill').style.width = '0%';
+    document.getElementById('resetBtn').disabled = true;
+    document.getElementById('gradeBtn').disabled = true;
+    document.getElementById('startBtn').textContent = '▶ Start Session';
+    updateStats();
+    toast('Session reset.', 'info');
+  }
+
+  /* ─── Helpers ─── */
+  function appendMsg(role, label, content, reward, done=false) {
+    const chat = document.getElementById('chatArea');
+    const div = document.createElement('div');
+    div.className = `msg ${role}`;
+    const chip = reward!=null ? `<div class="reward-chip ${reward>=0?'pos':'neg'}">${reward>=0?'▲':'▼'} ${reward>=0?'+':''}${reward.toFixed(2)}</div>` : '';
+    const doneTag = done ? `<div style="margin-top:6px;font-size:11px;color:var(--muted);">🏁 Episode ended</div>` : '';
+    div.innerHTML = `
+      <div class="avatar ${role}-av">${role==='ai'?'🤖':'👤'}</div>
+      <div class="bubble">
+        <div class="role-label">${label}</div>
+        <div>${content}</div>
+        ${chip}${doneTag}
+      </div>`;
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  function appendSystemMsg(msg) {
+    const chat = document.getElementById('chatArea');
+    const div = document.createElement('div');
+    div.className = 'msg system';
+    div.innerHTML = `<div class="bubble">${msg}</div>`;
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  function updateStats() {
+    document.getElementById('statSteps').textContent = state.steps;
+    const r = state.cumulativeReward;
+    document.getElementById('statReward').textContent = r.toFixed(2);
+    document.getElementById('statReward').style.color = r >= 0 ? 'var(--success)' : 'var(--danger)';
+    document.getElementById('statStatus').textContent = state.ended ? 'Done' : (state.sessionId ? 'Active' : '—');
+    document.getElementById('statTasks').textContent = state.totalSessions;
+
+    const el = document.getElementById('cumulativeReward');
+    el.textContent = r.toFixed(2);
+    el.className = `reward-val ${r > 0 ? 'positive' : r < 0 ? 'negative' : ''}`;
+
+    const pct = Math.min(100, (state.steps / state.maxSteps) * 100);
+    document.getElementById('progressFill').style.width = `${pct}%`;
+  }
+
+  function setLoading(on) {
+    document.getElementById('submitBtn').disabled = on;
+    document.getElementById('submitBtn').innerHTML = on ? '<span class="spinner"></span>' : 'Send →';
+    document.getElementById('startBtn').disabled = on;
+  }
+
+  let toastTimer;
+  function toast(msg, type='info') {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className = `show ${type}`;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.className = type, 3000);
+  }
+
+  // Auto-select first task
+  selectTask(document.querySelector('.task-card'));
+</script>
+</body>
+</html>

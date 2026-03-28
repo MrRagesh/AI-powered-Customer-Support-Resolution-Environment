@@ -1,6 +1,4 @@
-"""LLM response generator with RAG context."""
-import json
-from typing import List, Optional
+from typing import List
 from app.models.observation import KBResult
 from app.core.settings import get_settings
 from app.utils.logger import get_logger
@@ -17,7 +15,7 @@ If you cannot resolve the issue, acknowledge it and offer escalation.
 """
 
 RESPONSE_PROMPT = """Customer ticket ({category}):
-"""{ticket_text}"""
+'''{ticket_text}'''
 
 Knowledge Base Context:
 {kb_context}
@@ -44,10 +42,10 @@ class ResponseGenerator:
         self._client = None
 
     def _get_client(self):
-        if self._client is None and settings.OPENAI_API_KEY:
+        if self._client is None and settings.GEMINI_API_KEY:
             try:
-                from openai import AsyncOpenAI
-                self._client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+                from google import genai
+                self._client = genai.Client(api_key=settings.GEMINI_API_KEY)
             except ImportError:
                 pass
         return self._client
@@ -83,16 +81,17 @@ class ResponseGenerator:
             history=history_str,
         )
 
-        response = await client.chat.completions.create(
+        from google import genai
+        response = await client.aio.models.generate_content(
             model=settings.LLM_MODEL,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_content},
-            ],
-            temperature=settings.LLM_TEMPERATURE,
-            max_tokens=settings.LLM_MAX_TOKENS,
+            contents=user_content,
+            config=genai.types.GenerateContentConfig(
+                system_instruction=SYSTEM_PROMPT,
+                temperature=settings.LLM_TEMPERATURE,
+                max_output_tokens=settings.LLM_MAX_TOKENS,
+            )
         )
-        return response.choices[0].message.content.strip()
+        return response.text.strip()
 
     def _fallback_generate(self, category: str) -> str:
         return FALLBACK_RESPONSES.get(category, FALLBACK_RESPONSES["general"])

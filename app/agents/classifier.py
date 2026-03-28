@@ -1,6 +1,5 @@
 """Ticket classifier — zero-shot via LLM or keyword fallback."""
 import json
-from typing import Optional
 from app.core.constants import CATEGORIES, SEVERITY
 from app.core.settings import get_settings
 from app.utils.logger import get_logger
@@ -18,9 +17,9 @@ Respond ONLY with valid JSON:
 {{"category": "<category>", "severity": "<severity>", "confidence": <0.0-1.0>}}
 
 Ticket:
-"""
+'''
 {ticket_text}
-"""
+'''
 """
 
 KEYWORD_MAP = {
@@ -46,12 +45,12 @@ class TicketClassifier:
         self._client = None
 
     def _get_client(self):
-        if self._client is None and settings.OPENAI_API_KEY:
+        if self._client is None and settings.GEMINI_API_KEY:
             try:
-                from openai import AsyncOpenAI
-                self._client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+                from google import genai
+                self._client = genai.Client(api_key=settings.GEMINI_API_KEY)
             except ImportError:
-                logger.warning("classifier.openai_not_installed")
+                logger.warning("classifier.google_genai_not_installed")
         return self._client
 
     async def classify(self, ticket_text: str) -> dict:
@@ -70,13 +69,17 @@ class TicketClassifier:
             severities=", ".join(SEVERITY),
             ticket_text=text[:1500],
         )
-        response = await client.chat.completions.create(
+        from google import genai
+        response = await client.aio.models.generate_content(
             model=settings.LLM_MODEL,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.0,
-            max_tokens=100,
+            contents=prompt,
+            config=genai.types.GenerateContentConfig(
+                temperature=0.0,
+                max_output_tokens=100,
+                response_mime_type="application/json",
+            )
         )
-        raw = response.choices[0].message.content.strip()
+        raw = response.text.strip()
         result = json.loads(raw)
         logger.info("classifier.llm_result", **result)
         return result

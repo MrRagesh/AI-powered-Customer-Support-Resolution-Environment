@@ -2,7 +2,9 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
+import os
 
 from app.core.settings import get_settings
 from app.core.exceptions import AppError
@@ -74,6 +76,16 @@ app.include_router(routes.router)
 app.include_router(tasks.router)
 app.include_router(grader.router)
 app.include_router(baseline.router)
+
+# Serve frontend UI
+_frontend_dir = os.path.join(os.path.dirname(__file__), "..", "frontend")
+if os.path.isdir(_frontend_dir):
+    app.mount("/ui", StaticFiles(directory=_frontend_dir, html=True), name="frontend")
+
+
+@app.get("/ui", include_in_schema=False)
+async def serve_ui():
+    return FileResponse(os.path.join(_frontend_dir, "index.html"))
 
 
 @app.get("/health", tags=["Health"])
