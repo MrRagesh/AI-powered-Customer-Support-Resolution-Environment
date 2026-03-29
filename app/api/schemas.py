@@ -77,3 +77,16 @@ class BaselineResponse(BaseModel):
 # ── /analytics ────────────────────────────────────────────────────────────────
 class AnalyticsResponse(BaseModel):
     metrics: dict
+
+
+# ── /chat ─────────────────────────────────────────────────────────────────────
+class ChatRequest(BaseModel):
+    session_id: Optional[str] = None
+    message: str = Field(..., example="I need help with my order")
+
+class ChatResponse(BaseModel):
+    session_id: str
+    response: str
+    category: str
+    is_resolved: bool
+    is_escalated: bool

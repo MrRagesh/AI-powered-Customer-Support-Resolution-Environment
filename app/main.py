@@ -10,7 +10,7 @@ from app.core.settings import get_settings
 from app.core.exceptions import AppError
 from app.db.database import init_db, get_db
 from app.utils.logger import setup_logging, get_logger
-from app.api import routes, tasks, grader, baseline
+from app.api import routes, tasks, grader, baseline, chat
 from app.services.kb_service import KBService
 from app.rag.vector_store import get_vector_store
 
@@ -76,16 +76,12 @@ app.include_router(routes.router)
 app.include_router(tasks.router)
 app.include_router(grader.router)
 app.include_router(baseline.router)
+app.include_router(chat.router)
 
-# Serve frontend UI
+# Serve frontend UI (StaticFiles automatically handles index.html for /ui/)
 _frontend_dir = os.path.join(os.path.dirname(__file__), "..", "frontend")
 if os.path.isdir(_frontend_dir):
     app.mount("/ui", StaticFiles(directory=_frontend_dir, html=True), name="frontend")
-
-
-@app.get("/ui", include_in_schema=False)
-async def serve_ui():
-    return FileResponse(os.path.join(_frontend_dir, "index.html"))
 
 
 @app.get("/health", tags=["Health"])

@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AI Customer Support — OpenEnv Dashboard</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="/ui/style.css">
 </head>
 
 <body>
@@ -14,10 +14,14 @@
   <!-- HEADER -->
   <header>
     <div class="logo">
-      <span class="logo-icon">🤖</span>
+      <!-- <span class="logo-icon"></span> -->
       <h1>AI Customer Support OpenEnv</h1>
     </div>
     <div class="header-right">
+      <div class="view-toggle">
+        <button class="toggle-btn active" id="btnManualView" onclick="switchView('manual')">Manual Evaluation</button>
+        <button class="toggle-btn" id="btnChatView" onclick="switchView('chat')">Live Assistant</button>
+      </div>
       <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);">
         <span class="status-dot" id="statusDot"></span>
         <span id="statusText">Checking...</span>
@@ -29,7 +33,7 @@
     </div>
   </header>
 
-  <div class="layout">
+  <div class="layout" id="manualModeView">
     <!-- SIDEBAR -->
     <aside class="sidebar">
       <div class="sidebar-section">
@@ -163,9 +167,43 @@
     </div>
   </div>
 
+  <div class="layout-chat" id="chatModeView" style="display:none;">
+    <div class="chat-mode-wrapper">
+      <div class="chat-mode-header">
+        <div class="bot-avatar">🤖</div>
+        <div class="header-info">
+          <h2>Support Assistant</h2>
+          <p>We're here to help!</p>
+        </div>
+        <div style="margin-left:auto; display:flex; gap:8px;">
+          <button id="voiceToggleBtn" class="voice-btn" title="Enable Voice">🔇</button>
+          <button id="resetChatSessionBtn" class="reset-btn" title="Start new session" aria-label="Reset chat">↺</button>
+        </div>
+      </div>
+      
+      <div class="chat-mode-display" id="chatModeDisplay">
+        <div class="chat-mode-message bot-msg">
+          <div class="avatar">🤖</div>
+          <div class="chat-bubble">
+            Hello! How can I help you today?
+          </div>
+        </div>
+      </div>
+
+      <div class="chat-mode-input">
+        <form id="chatModeForm">
+          <input type="text" id="chatModeInput" placeholder="Type your message..." autocomplete="off" required>
+          <button type="submit" id="chatModeSendBtn">
+            <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" class="css-i6dzq1"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <div id="toast"></div>
 
-  <script src="./script.js"></script>
+  <script src="/ui/script.js"></script>
 
 </body>
 

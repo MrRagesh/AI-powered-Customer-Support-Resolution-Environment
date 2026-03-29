@@ -130,7 +130,7 @@ let state = {
       const data = await r.json();
 
       state.steps++;
-      const rwd = data.reward ?? 0;
+      const rwd = Number(data.reward) || 0;
       state.cumulativeReward += rwd;
       const done = data.done ?? false;
 
@@ -202,7 +202,8 @@ let state = {
     const chat = document.getElementById('chatArea');
     const div = document.createElement('div');
     div.className = `msg ${role}`;
-    const chip = reward!=null ? `<div class="reward-chip ${reward>=0?'pos':'neg'}">${reward>=0?'▲':'▼'} ${reward>=0?'+':''}${reward.toFixed(2)}</div>` : '';
+    const numReward = Number(reward);
+    const chip = (reward != null && reward !== '' && !isNaN(numReward)) ? `<div class="reward-chip ${numReward>=0?'pos':'neg'}">${numReward>=0?'▲':'▼'} ${numReward>=0?'+':''}${numReward.toFixed(2)}</div>` : '';
     const doneTag = done ? `<div style="margin-top:6px;font-size:11px;color:var(--muted);">🏁 Episode ended</div>` : '';
     div.innerHTML = `
       <div class="avatar ${role}-av">${role==='ai'?'🤖':'👤'}</div>
@@ -257,3 +258,209 @@ let state = {
 
   // Auto-select first task
   selectTask(document.querySelector('.task-card'));
+
+  /* ─── View Toggle Logic ─── */
+  function switchView(view) {
+    document.getElementById('btnManualView').classList.toggle('active', view === 'manual');
+    document.getElementById('btnChatView').classList.toggle('active', view === 'chat');
+    document.getElementById('manualModeView').style.display = view === 'manual' ? 'grid' : 'none';
+    document.getElementById('chatModeView').style.display = view === 'chat' ? 'flex' : 'none';
+  }
+
+  /* ─── Chat Mode Logic ─── */
+  const chatState = {
+    sessionId: null,
+    voiceEnabled: false
+  };
+
+  const chatModeDisplay = document.getElementById('chatModeDisplay');
+  const chatModeForm = document.getElementById('chatModeForm');
+  const chatModeInput = document.getElementById('chatModeInput');
+  const chatModeSendBtn = document.getElementById('chatModeSendBtn');
+  const resetChatSessionBtn = document.getElementById('resetChatSessionBtn');
+  const voiceToggleBtn = document.getElementById('voiceToggleBtn');
+
+  /* ─── Text to Speech ─── */
+  function speakText(text) {
+    if (!chatState.voiceEnabled || !window.speechSynthesis) return;
+    
+    // Stop any currently speaking audio
+    window.speechSynthesis.cancel();
+    
+    const utterance = new SpeechSynthesisUtterance(text);
+    // Find a good female english voice (prefer natural/premium voices if available)
+    const voices = window.speechSynthesis.getVoices();
+    let selectedVoice = null;
+    
+    // Try finding specific good female voices
+    const preferredVoices = ['Samantha', 'Google UK English Female', 'Google US English', 'Microsoft Zira'];
+    for (const pref of preferredVoices) {
+      selectedVoice = voices.find(v => v.name.includes(pref));
+      if (selectedVoice) break;
+    }
+    
+    // Fallback: any female-sounding English voice, or just any English voice
+    if (!selectedVoice) selectedVoice = voices.find(v => v.lang.startsWith('en') && v.name.includes('Female'));
+    if (!selectedVoice) selectedVoice = voices.find(v => v.lang.startsWith('en'));
+    
+    if (selectedVoice) utterance.voice = selectedVoice;
+    utterance.rate = 1.0;
+    utterance.pitch = 1.1; // slightly higher pitch for a friendlier tone
+    
+    window.speechSynthesis.speak(utterance);
+  }
+
+  // Ensure voices are loaded (sometimes takes a tick on Chrome/Safari)
+  if (window.speechSynthesis) {
+    window.speechSynthesis.onvoiceschanged = () => { window.speechSynthesis.getVoices(); };
+  }
+
+  voiceToggleBtn.addEventListener('click', () => {
+    chatState.voiceEnabled = !chatState.voiceEnabled;
+    if (chatState.voiceEnabled) {
+      voiceToggleBtn.textContent = '🔊';
+      voiceToggleBtn.classList.add('enabled');
+      toast('Voice enabled', 'success');
+      // Hack to initialize audio context on some browsers
+      speakText(''); 
+    } else {
+      voiceToggleBtn.textContent = '🔇';
+      voiceToggleBtn.classList.remove('enabled');
+      window.speechSynthesis.cancel();
+      toast('Voice disabled', 'info');
+    }
+  });
+
+
+
+  function appendChatMessage(role, text, metadata = null) {
+    const msgDiv = document.createElement('div');
+    msgDiv.className = `chat-mode-message ${role}-msg`;
+    
+    const avatar = document.createElement('div');
+    avatar.className = 'avatar';
+    avatar.textContent = role === 'bot' ? '🤖' : '👤';
+    
+    const bubble = document.createElement('div');
+    bubble.className = 'chat-bubble';
+    bubble.textContent = text;
+    
+    if (metadata && role === 'bot') {
+      const metaDiv = document.createElement('div');
+      metaDiv.className = 'chat-meta';
+      
+      if (metadata.category) {
+        const catTag = document.createElement('span');
+        catTag.className = 'chat-tag';
+        catTag.textContent = `Intent: ${metadata.category}`;
+        metaDiv.appendChild(catTag);
+      }
+      if (metadata.is_resolved) {
+        const resTag = document.createElement('span');
+        resTag.className = 'chat-tag';
+        resTag.textContent = '✅ Resolved';
+        metaDiv.appendChild(resTag);
+      }
+      if (metadata.is_escalated) {
+        const escTag = document.createElement('span');
+        escTag.className = 'chat-tag';
+        escTag.textContent = '🚨 Escalated';
+        metaDiv.appendChild(escTag);
+      }
+      
+      bubble.appendChild(metaDiv);
+    }
+
+    msgDiv.appendChild(avatar);
+    msgDiv.appendChild(bubble);
+    chatModeDisplay.appendChild(msgDiv);
+    chatModeDisplay.scrollTop = chatModeDisplay.scrollHeight;
+  }
+
+  function showChatLoading() {
+    chatModeSendBtn.disabled = true;
+    chatModeInput.disabled = true;
+    
+    const msgDiv = document.createElement('div');
+    msgDiv.className = 'chat-mode-message bot-msg loading-msg';
+    msgDiv.id = 'chatLoadingMsg';
+    
+    const avatar = document.createElement('div');
+    avatar.className = 'avatar';
+    avatar.textContent = '🤖';
+    
+    const bubble = document.createElement('div');
+    bubble.className = 'chat-bubble';
+    bubble.textContent = 'Typing...';
+    
+    msgDiv.appendChild(avatar);
+    msgDiv.appendChild(bubble);
+    chatModeDisplay.appendChild(msgDiv);
+    chatModeDisplay.scrollTop = chatModeDisplay.scrollHeight;
+  }
+
+  function removeChatLoading() {
+    const loadingMsg = document.getElementById('chatLoadingMsg');
+    if (loadingMsg) loadingMsg.remove();
+    chatModeSendBtn.disabled = false;
+    chatModeInput.disabled = false;
+    chatModeInput.focus();
+  }
+
+  async function sendChatMessage(text) {
+    if (!text.trim()) return;
+    
+    appendChatMessage('user', text);
+    chatModeInput.value = '';
+    showChatLoading();
+    
+    try {
+      const response = await fetch(`${BASE()}/api/chat`, {
+        method: 'POST',
+        headers: headers(),
+        body: JSON.stringify({
+          session_id: chatState.sessionId,
+          message: text
+        })
+      });
+      
+      if (!response.ok) {
+        if (response.status === 401) throw new Error('Unauthorized. Check API Key.');
+        throw new Error(`Server Error: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (!chatState.sessionId && data.session_id) {
+        chatState.sessionId = data.session_id;
+      }
+      
+      removeChatLoading();
+      
+      appendChatMessage('bot', data.response, {
+        category: data.category,
+        is_resolved: data.is_resolved,
+        is_escalated: data.is_escalated
+      });
+      speakText(data.response);
+      
+    } catch (err) {
+      console.error(err);
+      removeChatLoading();
+      toast(err.message, 'error');
+    }
+  }
+
+  chatModeForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    sendChatMessage(chatModeInput.value);
+  });
+
+  resetChatSessionBtn.addEventListener('click', () => {
+    chatState.sessionId = null;
+    chatModeDisplay.innerHTML = '';
+    const resetMsg = 'Session reset. Hello! How can I help you today?';
+    appendChatMessage('bot', resetMsg);
+    speakText(resetMsg);
+    toast('Chat session reset.', 'info');
+  });
