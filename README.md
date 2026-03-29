@@ -6,8 +6,18 @@
 [![Docker](https://img.shields.io/badge/docker-ready-blue)]()
 
 > A production-grade, **OpenEnv-compliant** AI Customer Support Resolution Environment.
-> Agents classify tickets, retrieve knowledge, generate responses, and resolve or escalate
-> issues across three difficulty levels with deterministic grading.
+> Agents classify tickets, retrieve knowledge via RAG (FAISS), generate responses, and resolve or escalate issues across multiple difficulty levels with deterministic grading.
+> Now featuring a **Unified Dashboard**, **Live Assistant Chatbot**, and **Native Voice TTS**!
+
+---
+
+## ✨ Features
+
+- **OpenEnv Validation Engine:** Strict step-by-step state management and reward calculation.
+- **Unified UI Dashboard:** Seamlessly toggle between Manual Agent Evaluation bounds and the automated Live Chat interface.
+- **Live Assistant Chatbot:** A fully autonomous agent that converses with customers, categorizes intents, queries the Vector DB, and handles escalations.
+- **Native Voice (TTS):** The Live Assistant speaks directly to users leveraging zero-latency Web Speech APIs, equipped with high-quality female voice profiles.
+- **RAG Architecture:** FAISS-powered vector store hooked directly into SQLite for rich, policy-backed agent responses.
 
 ---
 
@@ -16,17 +26,16 @@
 ```bash
 # 1. Clone & configure
 cp .env.example .env
-# Edit .env — set API_KEY and optionally OPENAI_API_KEY
+# Edit .env — set API_KEY and LLM Keys (e.g. GEMINI_API_KEY / OPENAI_API_KEY)
 
-# 2. Install
+# 2. Install Dependencies
 pip install -r requirements.txt
 
-# 3. Launch
-make dev
-# → http://localhost:7860/docs
+# 3. Launch the Server
+uvicorn app.main:app --reload --port 7860
 
-# 4. Run baseline
-make baseline
+# 4. Access the Dashboard
+# → http://localhost:7860/ui
 ```
 
 ### Docker
@@ -40,15 +49,15 @@ make run
 ## 🏗️ Architecture
 
 ```
-Client → FastAPI → SupportEnvironment
-                       ↓
-               AI Agents (Classifier, Retriever, Generator)
-                       ↓
-               State Manager + Reward Engine
-                       ↓
-               Graders + FAISS Vector Store
-                       ↓
-               SQLite DB + Structured Logs
+Client (Web Dashboard / Chatbot)
+       ↓
+    FastAPI (Routes / Core)
+       ↓
+ AI Agents (Classifier, Retriever, Generator)
+       ↓
+State Manager + Reward Engine (OpenEnv)
+       ↓
+ Graders + FAISS Vector Store + SQLite DB
 ```
 
 ---
@@ -57,6 +66,8 @@ Client → FastAPI → SupportEnvironment
 
 | Method | Path | Description |
 |--------|------|-------------|
+| `GET`  | `/ui` | Unified Web Dashboard & Chat Interface |
+| `POST` | `/api/chat` | Autonomous Agent Chatbot Endpoint |
 | `POST` | `/env/reset` | Start a new episode |
 | `POST` | `/env/step` | Submit action, get observation+reward |
 | `GET`  | `/env/state/{session_id}` | Current state snapshot |
@@ -65,17 +76,37 @@ Client → FastAPI → SupportEnvironment
 | `POST` | `/baseline` | Run rule-based baseline on all tasks |
 | `GET`  | `/health` | Health check |
 
-**Auth:** All endpoints require `Authorization: Bearer <API_KEY>`.
+**Auth:** programmatic endpoints require `Authorization: Bearer <API_KEY>`.
 
 ---
 
-## 🎯 Tasks
+## 🗂️ Project Structure
 
-| Task ID | Difficulty | Max Steps | Description |
-|---------|-----------|-----------|-------------|
-| `support-easy-v1` | Easy | 5 | Single-turn refund/billing ticket |
-| `support-medium-v1` | Medium | 10 | Multi-turn technical troubleshooting |
-| `support-hard-v1` | Hard | 20 | Complex multi-intent, requires escalation |
+```
+ai-support-openenv/
+├── app/
+│   ├── main.py              # FastAPI entrypoint
+│   ├── api/                 # Routes (chat, env, tasks, grader, baseline)
+│   ├── env/                 # OpenEnv core (step/reset/state/reward)
+│   ├── agents/              # Classifier, Retriever, Generator (Gemini/OpenAI)
+│   ├── tasks/               # Easy, Medium, Hard task definitions
+│   ├── graders/             # Deterministic graders per task
+│   ├── models/              # Pydantic domain models
+│   ├── services/            # Business logic
+│   ├── db/                  # SQLite + SQLAlchemy repositories
+│   ├── rag/                 # FAISS vector store + embeddings
+│   └── core/                # Settings, constants, exceptions
+├── frontend/                # 🎨 Unified Web Dashboard & Chatbot UI
+│   ├── index.html           # Main View with Toggles
+│   ├── script.js            # Combined Logic & TTS Voice Engine
+│   └── style.css            # Styles & Layout System
+├── baseline/                # Deterministic baseline agent
+├── tests/                   # pytest async test suite
+├── scripts/                 # Seed, validate, generate tools
+├── openenv.yaml             # OpenEnv spec file
+├── Dockerfile               # Production container
+└── README.md
+```
 
 ---
 
@@ -105,77 +136,12 @@ Client → FastAPI → SupportEnvironment
 
 ---
 
-## 🧪 Example Session
-
-```python
-import httpx
-
-headers = {"Authorization": "Bearer YOUR_API_KEY"}
-
-with httpx.Client(base_url="http://localhost:7860", headers=headers) as c:
-    # 1. Reset
-    r = c.post("/env/reset", json={"task_id": "support-easy-v1"})
-    session_id = r.json()["session_id"]
-
-    # 2. Classify
-    c.post("/env/step", json={
-        "session_id": session_id,
-        "action": {"type": "classify", "content": "I need a refund for my order"}
-    })
-
-    # 3. Retrieve KB
-    c.post("/env/step", json={
-        "session_id": session_id,
-        "action": {"type": "retrieve", "content": "refund policy timeline"}
-    })
-
-    # 4. Respond & Resolve
-    c.post("/env/step", json={
-        "session_id": session_id,
-        "action": {"type": "resolve"}
-    })
-
-    # 5. Grade
-    r = c.post("/grader", json={"session_id": session_id})
-    print(r.json())
-    # {"score": 95, "passed": true, "breakdown": {...}}
-```
-
----
-
-## 🗂️ Project Structure
-
-```
-ai-support-openenv/
-├── app/
-│   ├── main.py              # FastAPI entrypoint
-│   ├── api/                 # Routes, schemas, grader, baseline
-│   ├── env/                 # OpenEnv core (step/reset/state/reward)
-│   ├── agents/              # Classifier, Retriever, Generator
-│   ├── tasks/               # Easy, Medium, Hard task definitions
-│   ├── graders/             # Deterministic graders per task
-│   ├── models/              # Pydantic domain models
-│   ├── services/            # Business logic
-│   ├── db/                  # SQLAlchemy + repositories
-│   ├── rag/                 # FAISS vector store + embeddings
-│   └── core/                # Settings, constants, exceptions
-├── baseline/                # Deterministic baseline agent
-├── tests/                   # pytest async test suite
-├── scripts/                 # Seed, validate, generate
-├── openenv.yaml             # OpenEnv spec file
-├── Dockerfile               # Production container
-└── README.md
-```
-
----
-
 ## 🔧 Configuration
 
 All config via `.env` (see `.env.example`):
 
-- `API_KEY` — Bearer token for auth
-- `OPENAI_API_KEY` — Optional; enables full LLM capability (fallback responses without it)
-- `LLM_MODEL` — Default: `gpt-4o-mini`
+- `API_KEY` — Bearer token for application auth
+- `GEMINI_API_KEY` / `OPENAI_API_KEY` — LLM capability keys
 - `DATABASE_URL` — Default: SQLite (swap to PostgreSQL for production)
 - `FAISS_INDEX_PATH` — Vector index storage path
 
@@ -211,31 +177,3 @@ OpenEnv Validation Results
 ════════════════════════════════════════
   Overall: ✅ ALL PASS
 ```
-
----
-
-## 🚢 Deploy to Hugging Face Spaces
-
-1. Create a Space (Docker SDK)
-2. Push this repo
-3. Set Space secrets: `API_KEY`, `OPENAI_API_KEY`
-4. Space auto-builds and runs on port `7860`
-
----
-
-## 📊 Baseline Results (Rule-based Agent)
-
-| Task | Score | Passed |
-|------|-------|--------|
-| Easy | ~85 | ✅ |
-| Medium | ~72 | ✅ |
-| Hard | ~65 | ✅ |
-| **Mean** | **~74** | **✅** |
-
----
-
-## 🗺️ Roadmap
-
-- **Phase 1** ✅ Core engine, 3 tasks, API, graders, baseline
-- **Phase 2** 🔜 Multi-turn memory, improved reward shaping, PostgreSQL
-- **Phase 3** 🔜 Monitoring dashboard, analytics, multi-language support
